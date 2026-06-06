@@ -1,1 +1,39 @@
+name: Auto Video Content Factory
 
+on:
+  schedule:
+    - cron: '0 6 * * *' # প্রতিদিন বাংলাদেশ সময় দুপুর ১২:০০ টায় (UTC 6:00 AM) অটোমেটিক রান হবে
+  workflow_dispatch: # আপনার মোবাইল থেকে যখন ইচ্ছা তখন এক ক্লিকে রান করার ম্যাজিক বাটন
+
+jobs:
+  render-video:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 1. কোড ডাউনলোড করা
+      uses: actions/checkout@v4
+
+    - name: 2. পাইথন সেটআপ করা
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+
+    - name: 3. লিনাক্স সার্ভারে FFmpeg এবং বাংলা ফন্ট ইন্সটল করা (ভিডিও এডিটিং ও সাবটাইটেলের জন্য)
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg fonts-beng
+
+    - name: 4. প্রয়োজনীয় পাইথন লাইব্রেরি ইন্সটল করা
+      run: |
+        pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        pip install google-genai # আমাদের এআই ব্রেইনের জন্য লেটেস্ট লাইব্রেরি
+
+    - name: 5. কন্টেন্ট ফ্যাক্টরি সচল করা (ভিডিও তৈরি শুরু)
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      run: python automation/bridge_runner.py
+      
