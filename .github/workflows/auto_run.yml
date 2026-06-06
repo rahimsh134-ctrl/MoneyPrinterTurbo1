@@ -37,10 +37,10 @@ jobs:
         PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
       run: python automation/bridge_runner.py
 
-            - name: Upload Generated Video Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Auto-Generated-Video
-          path: storage/tasks/*/final-1.mp4
-          
-      
+    - name: 6. তৈরি হওয়া ফাইনাল ভিডিওটি গিটহাবে আপলোড করা (ডাউনলোডের জন্য)
+      uses: actions/upload-artifact@v4
+      with:
+        name: Auto-Generated-Video
+        path: storage/tasks/*/final-1.mp4
+        retention-days: 7 # গিটহাবে ভিডিওটি ৭ দিন পর্যন্ত জমা থাকবে, এর মধ্যে ডাউনলোড করে নিবেন
+        
