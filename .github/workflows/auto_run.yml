@@ -36,4 +36,11 @@ jobs:
         PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
       run: python automation/bridge_runner.py
+
+            - name: Upload Generated Video Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Auto-Generated-Video
+          path: storage/tasks/*/final-1.mp4
+          
       
