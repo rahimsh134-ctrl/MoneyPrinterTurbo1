@@ -1,75 +1,100 @@
 import os
 import sys
+import inspect
+from uuid import uuid4
 
-# পাইথনকে মাদার প্রজেক্টের রুট ডিরেক্টরি চিনিয়ে দেওয়া (যাতে ইমপোর্ট এরর না হয়)
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+if root_dir not in sys.path:
+    sys.path.append(root_dir)
 
-# আমাদের তৈরি করা এআই ব্রেন এবং প্রজেক্টের মূল ভিডিও জেনারেটর ইমপোর্ট করা
-from automation.core_brain import VideoContentEngine
+from automation.core_brain import generate_bengali_script
 
-try:
-    # প্রজেক্টের আসল ভিডিও জেনারেশন মডিউল ইমপোর্ট (ওদের ব্যাকএন্ড ইঞ্জিন)
-    from app.services import video as video_service
-    from app.models.schema import VideoParams
-except ImportError:
-    # যদি ওদের ফোল্ডার স্ট্রাকচার ভিন্ন হয়, তার জন্য সেফটি ব্যাকআপ লজিক
-    print("[⚠️] মূল ভিডিও সার্ভিসের পাথ অ্যাডজাস্ট করা হচ্ছে...")
-    video_service = None
-
-class AutomationBridge:
+def dynamic_engine_caller(func, **kwargs):
     """
-    মাস্টার ব্রিজ যা এআই-এর আউটপুট নিয়ে মূল ভিডিও মেকার ইঞ্জিনের সাথে কানেক্ট করে।
+    ম্যাজিক ফাংশন: এটি টার্গেট ফাংশনের সিগনেচার লাইভ চেক করে 
+    শুধু গ্রহণযোগ্য আর্গুমেন্টগুলোই পাস করবে। ফলে এরর আসার সুযোগ নেই।
     """
-    def __init__(self):
-        self.ai_engine = VideoContentEngine()
+    sig = inspect.signature(func)
+    filtered_kwargs = {}
+    
+    # ম্যাপিং ডিকশনারি: ওদের প্রজেক্টের ভিন্ন ভিন্ন ভার্সনে যে নামগুলো থাকতে পারে
+    aliases = {
+        "video_subject": kwargs.get("title"),
+        "video_script": kwargs.get("script"),
+        "script": kwargs.get("script"),
+        "video_terms": kwargs.get("keywords_str"),
+        "search_keywords": kwargs.get("keywords_list"),
+        "voice_name": "bn-BD-PradeepNeural",
+        "video_aspect": "9:16",
+        "bgm_name": "random"
+    }
 
-    def start_factory(self):
-        print("[🚀] কন্টেন্ট ফ্যাক্টরি সচল হচ্ছে...")
-        
-        # ১. আজকের ট্রেন্ড খুঁজে বের করা
-        trend = self.ai_engine.fetch_trending_topic()
-        
-        # ২. জেমিনি এআই থেকে বাংলা স্ক্রিপ্ট ও কিওয়ার্ড অবজেক্ট নেওয়া
-        ai_output = self.ai_engine.generate_bangla_script(trend)
-        
-        title = ai_output.get("title", "আজকের ব্রেকিং নিউজ")
-        script = ai_output.get("script", "")
-        keywords = ai_output.get("search_keywords", ["technology"])
-
-        print(f"\n[🎬] ভিডিও তৈরির প্রস্তুতি সম্পন্ন:")
-        print(f" - শিরোনাম: {title}")
-        print(f" - কিওয়ার্ডস: {keywords}")
-        print(f" - স্ক্রিপ্ট সাইজ: {len(script)} অক্ষর")
-
-        # ৩. MoneyPrinterTurbo এর মূল ইঞ্জিনকে হেডলেস মোডে কল করা
-        # এখানে আমরা ওদের কনফিগারেশন অনুযায়ী প্যারামিটার পাস করছি
-        output_dir = os.path.join(os.getcwd(), "output")
-        os.makedirs(output_dir, exist_ok=True)
-
-        print("[⏳] ভিডিও রেন্ডারিং শুরু হচ্ছে... (এতে কিছুক্ষণ সময় লাগতে পারে)")
-        
-        try:
-            # পিক্সেলস এবং পিক্সাবে দুটোই ব্যাকআপ হিসেবে সেট করা হলো
-            # কোডটি আপনার গিটহাব সিক্রেটস থেকে স্বয়ংক্রিয়ভাবে চাবিকাঠিগুলো নিয়ে নেবে
-            if video_service:
-                # ওদের অফিশিয়াল ব্যাকএন্ড ফাংশন কল করা (যা ওয়েবসাইট ছাড়াই রান হয়)
-                # নোট: প্রজেক্টের ভার্সন ভেদে ফাংশনের নাম সামান্য পরিবর্তন হলে আমরা তা গিটহাব লগে দেখতে পাবো
-                video_path = video_service.generate_video(
-                    script=script,
-                    search_keywords=keywords,
-                    voice_name="bn-BD-PradeepNeural", # মাইক্রোসফটের বেস্ট বাংলা নিউরাল ভয়েস
-                    video_multiplier=1,
-                    bg_music="music.mp3" # ডিফল্ট ব্যাকগ্রাউন্ড মিউজিক
+    for param_name in sig.parameters:
+        if param_name in aliases and aliases[param_name] is not None:
+            filtered_kwargs[param_name] = aliases[param_name]
+        elif param_name == "task_id":
+            filtered_kwargs[param_name] = kwargs.get("task_id")
+        elif param_name == "params":
+            # যদি ফাংশনটি সরাসরি অবজেক্ট খোঁজে
+            try:
+                from app.models.schema import VideoParams
+                filtered_kwargs[param_name] = VideoParams(
+                    video_subject=kwargs.get("title"),
+                    video_script=kwargs.get("script"),
+                    video_terms=kwargs.get("keywords_str"),
+                    voice_name="bn-BD-PradeepNeural",
+                    video_aspect="9:16"
                 )
-                print(f"[🎉] সফল! আপনার ফাইনাল ভিডিও তৈরি হয়েছে এখানে: {video_path}")
-            else:
-                # যদি ইমপোর্ট এরর থাকে তবে এটি রান হবে (টেস্টিং পারপাস)
-                print("[❌] মূল ভিডিও সার্ভিসের সাথে কানেকশন মেলানো যায়নি। ফোল্ডার স্ট্রাকচার চেক প্রয়োজন।")
-                
-        except Exception as engine_error:
-            print(f"[❌] ভিডিও ইঞ্জিন রান করার সময় ত্রুটি ঘটেছে: {str(engine_error)}")
+            except:
+                pass
+
+    return func(**filtered_kwargs)
+
+def main():
+    print("[🚀] কন্টেন্ট ফ্যাক্টরি সচল হচ্ছে...")
+    
+    topic = "কৃত্রিম বুদ্ধিমত্তা (AI) কীভাবে ২০২৬ সালে মানুষের চাকরি পাল্টাচ্ছে"
+    ai_data = generate_bengali_script(topic)
+    
+    title = ai_data.get("title", "আজকের ভাইরাল ইনফো")
+    keywords = ai_data.get("keywords", ["technology", "future"])
+    script = ai_data.get("script", "")
+    keywords_str = ",".join(keywords)
+    
+    print(f"\n[🎬] প্রস্তুতি সম্পন্ন: {title}")
+    print("[⏳] ভিডিও রেন্ডারিং মডিউল স্ক্যান করা হচ্ছে...")
+
+    # একের অধিক সম্ভাব্য সোর্স ফাংশন চেক করা (ভার্সন সেফটি)
+    target_function = None
+    try:
+        from app.services import task as task_service
+        target_function = task_service.start
+        print("[ℹ️] টার্গেট সনাক্তকরণ: task_service.start")
+    except:
+        try:
+            from app.services import video as video_service
+            target_function = video_service.generate_video
+            print("[ℹ️] টার্গেট সনাক্তকরণ: video_service.generate_video")
+        except Exception as e:
+            print("[❌] মূল প্রজেক্টের কোনো রেন্ডারিং ফাংশন খুঁজে পাওয়া যায়নি।")
+            return
+
+    try:
+        task_id = str(uuid4())
+        # ডাইনামিক ফিল্টারিং কল
+        dynamic_engine_caller(
+            target_function,
+            task_id=task_id,
+            title=title,
+            script=script,
+            keywords_str=keywords_str,
+            keywords_list=keywords
+        )
+        print("[✅] কন্টেন্ট ফ্যাক্টরি সফলভাবে রান সম্পন্ন করেছে!")
+        
+    except Exception as e:
+        print(f"[❌] ডাইনামিক রেন্ডারিং এরর: {str(e)}")
 
 if __name__ == "__main__":
-    bridge = AutomationBridge()
-    bridge.start_factory()
-      
+    main()
+            
